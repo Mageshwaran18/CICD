@@ -22,7 +22,7 @@ on:
           - staging
           - prod 
 env:
-  GCP_REGION: us_east1
+  GCP_REGION: us-east1
   ARTIFACT_REGISTRY: demo-repo
 
 jobs:
@@ -69,7 +69,7 @@ jobs:
       - name: Deploy to cloud run
         run: |
           gcloud run deploy demo --image ${{ steps.image-tag.outputs.tag }} --region ${GCP_REGION} --platform managed --allow-unauthenticated --port 8000 \
-          --cpu 1 --memory 512Mi --max-instances 5 --timeout 300s --quiet
+          --cpu 1 --memory 512Mi --max-instances 5 --timeout 500s --quiet
       
       - name: Get URL 
         id: get-url
