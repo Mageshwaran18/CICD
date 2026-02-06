@@ -48,7 +48,7 @@ jobs:
       
       - name: Set Image tag 
         id: image-tag
-        run: |
+        run: | 
           echo "tag=${GCP_REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${ARTIFACT_REGISTRY}/demo:latest" >> $GITHUB_OUTPUT
           echo "tag_sha=${GCP_REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${ARTIFACT_REGISTRY}/demo:${{ github.sha }}" >> $GITHUB_OUTPUT
       
