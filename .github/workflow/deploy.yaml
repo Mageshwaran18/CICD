@@ -1,0 +1,82 @@
+name: Deploy to Cloud Run
+on: 
+  push:
+    branches:
+      - master
+      - main 
+      - develop
+  pull_request:
+    branches:
+      - master
+      - main
+      - develop
+  workflow_dispatch:
+    inputs:
+      environments:
+        description: 'Deployment environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod 
+env:
+  GCP_REGION: us_east1
+  ARTIFACT_REGISTRY: demo-repo
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code 
+        uses: actions/checkout@v4
+      
+      - name: Authenticate to google cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+      
+      - name: Configure docker for Google Artifact ARTIFACT_REGISTRY
+        run: |
+          gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+      
+      - name: Set Image tag 
+        id: image-tag
+        run: |
+          echo "tag=${GCP_REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${ARTIFACT_REGISTRY}/demo:latest" >> $GITHUB_OUTPUT
+          echo "tag_sha=${GCP_REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${ARTIFACT_REGISTRY}/demo:${{ github.sha }}" >> $GITHUB_OUTPUT
+      
+      - name: Debug image tags
+        run: |
+          echo "TAG=${{ steps.image-tag.outputs.tag }}"
+          echo "TAG_SHA=${{ steps.image-tag.outputs.tag_sha }}"
+
+      - name: Build Docker Image
+        run: |
+          docker build -t ${{ steps.image-tag.outputs.tag }} -t ${{ steps.image-tag.outputs.tag_sha }} -f Dockerfile .
+      
+      - name: Push Docker Image
+        run: |
+          docker push ${{ steps.image-tag.outputs.tag }}
+          docker push ${{ steps.image-tag.outputs.tag_sha }}
+      
+      - name: Deploy to cloud run
+        run: |
+          gcloud run deploy demo --image ${{ steps.image-tag.outputs.tag }} --region ${GCP_REGION} --platform managed --allow-unauthenticated --port 8000 \
+          --cpu 1 --memory 512Mi --max-instances 5 --timeout 300s --quiet
+      
+      - name: Get URL 
+        id: get-url
+        run: |
+          URL=$(gcloud run services describe demo --region ${GCP_REGION} --platform managed --format='value(status.url)')
+          echo "URL=$URL" >> $GITHUB_OUTPUT
+      
+      - name: Verify Deployment
+        run: |
+          curl -f ${{ steps.get-url.outputs.URL }} || exit 1
